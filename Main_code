@@ -1,0 +1,113 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+import tkinter as tk
+from tkinter import messagebox, ttk
+from sklearn.ensemble import RandomForestClassifier
+import numpy as np
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+# Load the dataset
+file_path = "Dataset---Disease-Prediction-Using--Machine-Learning.csv"
+df = pd.read_csv(file_path)
+
+# Display dataset information
+print("Dataset Shape:", df.shape)
+print("Column Names:", df.columns.tolist())
+
+# Check for missing values
+missing_values = df.isnull().sum().sum()
+print("Total Missing Values:", missing_values)
+
+# Encode the target variable
+y = df['prognosis']
+label_encoder = LabelEncoder()
+y_encoded = label_encoder.fit_transform(y)
+
+# Drop the target column from features
+X = df.drop(columns=['prognosis'])
+
+# Split dataset into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y_encoded, test_size=0.2, random_state=42)
+
+# Train a more robust model (Random Forest)
+model = RandomForestClassifier(n_estimators=100, random_state=42)
+model.fit(X_train, y_train)
+
+# GUI Implementation using Tkinter
+def predict_disease():
+    selected_symptoms = [var.get() for var in symptom_vars]
+    if sum(selected_symptoms) == 0:
+        messagebox.showwarning("Warning", "Please select at least one symptom.")
+        return
+    input_data = pd.DataFrame([selected_symptoms], columns=X.columns)
+    probabilities = model.predict_proba(input_data)[0]
+    top_indices = np.argsort(probabilities)[-3:][::-1]
+    top_diseases = label_encoder.inverse_transform(top_indices)
+    result_text = "\n".join([f"{i+1}. {disease} ({probabilities[idx]*100:.2f}%)" for i, (idx, disease) in enumerate(zip(top_indices, top_diseases))])
+    result_label.config(text=f"Predicted Diseases:\n{result_text}")
+    
+    # Plot probability graph
+    fig, ax = plt.subplots(figsize=(5, 3))
+    ax.bar(top_diseases, probabilities[top_indices] * 100, color=['blue', 'green', 'red'])
+    ax.set_ylabel("Probability (%)")
+    ax.set_title("Top Predicted Diseases")
+    
+    # Embed plot in Tkinter
+    for widget in graph_frame.winfo_children():
+        widget.destroy()
+    canvas = FigureCanvasTkAgg(fig, master=graph_frame)
+    canvas.draw()
+    canvas.get_tk_widget().pack()
+
+    
+# Create GUI window
+root = tk.Tk()
+root.title("Disease Prediction System")
+root.geometry("700x900")
+root.configure(bg="#f0f0f0")
+
+ #Create title label
+tk.Label(root, text="Disease Prediction System", font=("Arial", 18, "bold"), bg="#4CAF50", fg="white", pady=10).pack(fill="x")
+
+# Create instruction label
+tk.Label(root, text="Select Symptoms", font=("Arial", 14), bg="#f0f0f0").pack(pady=10)
+
+# Create symptom checkboxes
+symptom_vars = [tk.IntVar() for _ in range(len(X.columns))]
+symptom_frame = tk.Frame(root, bg="#f0f0f0")
+symptom_frame.pack()
+canvas = tk.Canvas(symptom_frame, bg="#f0f0f0")
+scrollbar = tk.Scrollbar(symptom_frame, orient="vertical", command=canvas.yview)
+scrollable_frame = tk.Frame(canvas, bg="#f0f0f0")
+
+scrollable_frame.bind(
+    "<Configure>",
+    lambda e: canvas.configure(
+        scrollregion=canvas.bbox("all")
+    )
+)
+
+canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+canvas.configure(yscrollcommand=scrollbar.set)
+
+for i, symptom in enumerate(X.columns):
+    tk.Checkbutton(scrollable_frame, text=symptom, variable=symptom_vars[i], bg="#f0f0f0").pack(anchor='w')
+
+canvas.pack(side="left", fill="both", expand=True)
+scrollbar.pack(side="right", fill="y")
+
+# Predict button
+tk.Button(root, text="Predict Disease", font=("Arial", 14, "bold"), bg="#008CBA", fg="white", padx=10, pady=5, command=predict_disease).pack(pady=20)
+
+# Result label
+result_label = tk.Label(root, text="", font=("Arial", 14), fg="blue", bg="#f0f0f0")
+result_label.pack(pady=10)
+
+# Run GUI
+root.mainloop()
+
+
+
